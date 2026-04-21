@@ -117,8 +117,12 @@ padding: 0;
 /* STATS */
 .stats {
 display: flex;
+flex-direction: row;
+flex-wrap: nowrap;
 gap: 10px;
 margin-bottom: 14px;
+width: 100%;
+max-width: 380px;
 }
 
 .stat-box {
@@ -127,7 +131,8 @@ border: 1px solid #1f3d28;
 border-radius: 12px;
 padding: 10px 18px;
 text-align: center;
-min-width: 80px;
+flex: 1;
+min-width: 0;
 }
 
 .stat-value {

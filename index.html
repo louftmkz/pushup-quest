@@ -36,6 +36,14 @@ min-height: 100vh;
 justify-content: center;
 }
 
+.app-wrapper {
+width: 100%;
+max-width: 380px;
+display: flex;
+flex-direction: column;
+align-items: center;
+}
+
 /* HEADER */
 .header {
 text-align: center;
@@ -121,8 +129,7 @@ flex-direction: row;
 flex-wrap: nowrap;
 gap: 10px;
 margin-bottom: 14px;
-width: min(100%, 380px);
-align-self: center;
+width: 100%;
 }
 
 .stat-box {
@@ -505,6 +512,8 @@ cursor: pointer;
 </head>
 <body>
 
+<div class="app-wrapper">
+
 <div class="header">
   <div class="title">LIEGESTÜTZ</div>
   <div class="subtitle">TRACKER</div>
@@ -579,6 +588,8 @@ cursor: pointer;
 <div class="hint">TIPP AUF EINEN TAG UM EINZUTRAGEN</div>
 
 <button class="reset-link" onclick="resetAll()">· ALLE DATEN LÖSCHEN ·</button>
+
+</div><!-- end app-wrapper -->
 
 <!-- Modal -->
 

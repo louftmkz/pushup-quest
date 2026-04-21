@@ -1014,7 +1014,14 @@ document.addEventListener('keydown', (e) => {
 // Service worker for PWA offline support
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+    // Alle alten Service Worker deregistrieren, dann neu registrieren
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      Promise.all(registrations.map(r => r.unregister())).then(() => {
+        navigator.serviceWorker.register('service-worker.js').then(reg => {
+          reg.update();
+        }).catch(() => {});
+      });
+    });
   });
 }
 

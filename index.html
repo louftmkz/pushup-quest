@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f0c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Liegestütz">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Liegestütz Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+background: #0a0f0c;
+color: #c8e6c9;
+font-family: ‘DM Mono’, ‘Fira Mono’, monospace;
+min-height: 100vh;
+overflow-x: hidden;
+}
+
+body {
+display: flex;
+flex-direction: column;
+align-items: center;
+padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
+padding-top: calc(16px + env(safe-area-inset-top));
+min-height: 100vh;
+justify-content: center;
+}
+
+/* HEADER */
+.header {
+text-align: center;
+margin-bottom: 10px;
+}
+
+.title {
+font-family: ‘Syne’, sans-serif;
+font-size: 26px;
+font-weight: 800;
+color: #7fffc4;
+letter-spacing: -0.5px;
+line-height: 1;
+}
+
+.subtitle {
+font-size: 10px;
+color: #4a7a5a;
+letter-spacing: 3px;
+margin-top: 2px;
+}
+
+/* GOALS STRIP (compact, above stats) */
+.goals {
+display: flex;
+gap: 8px;
+margin-bottom: 10px;
+}
+
+.goal-chip {
+background: #0e1a12;
+border: 1px solid #1f3d28;
+border-radius: 10px;
+padding: 6px 12px;
+display: flex;
+align-items: center;
+gap: 6px;
+cursor: pointer;
+transition: border-color 0.15s;
+}
+
+.goal-chip:hover { border-color: #2dba66; }
+
+.goal-chip-label {
+font-size: 9px;
+color: #4a7a5a;
+letter-spacing: 1.5px;
+}
+
+.goal-chip-value {
+font-size: 13px;
+color: #7fffc4;
+font-weight: 500;
+}
+
+.goal-chip-value.empty { color: #4a7a5a; }
+
+.goal-chip-edit {
+width: 50px;
+background: transparent;
+border: none;
+border-bottom: 1px solid #2dba66;
+color: #7fffc4;
+font-family: inherit;
+font-size: 13px;
+text-align: center;
+outline: none;
+padding: 0;
+}
+
+/* STATS */
+.stats {
+display: flex;
+gap: 10px;
+margin-bottom: 14px;
+}
+
+.stat-box {
+background: #0e1a12;
+border: 1px solid #1f3d28;
+border-radius: 12px;
+padding: 10px 18px;
+text-align: center;
+min-width: 80px;
+}
+
+.stat-value {
+font-size: 22px;
+font-weight: 500;
+color: #7fffc4;
+line-height: 1.1;
+}
+
+.stat-value.dim { color: #4a7a5a; }
+.stat-value.warn { color: #f9c74f; }
+
+.stat-label {
+font-size: 9px;
+color: #4a7a5a;
+letter-spacing: 1px;
+margin-top: 2px;
+}
+
+/* CALENDAR CARD */
+.cal {
+background: #0d1810;
+border: 1px solid #1a3a25;
+border-radius: 20px;
+padding: 14px 14px 12px;
+width: 100%;
+max-width: 380px;
+box-shadow: 0 4px 40px #0a2015;
+}
+
+.cal-nav {
+display: flex;
+align-items: center;
+justify-content: space-between;
+margin-bottom: 10px;
+}
+
+.nav-btn {
+background: none;
+border: 1px solid #2a4a35;
+color: #7fffc4;
+border-radius: 8px;
+padding: 4px 14px;
+cursor: pointer;
+font-family: inherit;
+font-size: 16px;
+transition: background 0.15s;
+}
+
+.nav-btn:hover { background: #1a3a2a; }
+.nav-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+
+.cal-title {
+font-family: ‘Syne’, sans-serif;
+font-weight: 700;
+font-size: 15px;
+color: #c8e6c9;
+letter-spacing: 1px;
+}
+
+.month-progress {
+font-size: 9px;
+color: #4a7a5a;
+text-align: center;
+margin-bottom: 10px;
+letter-spacing: 1px;
+}
+
+.month-progress .done { color: #7fffc4; }
+.month-progress .goal-reached { color: #f9c74f; }
+
+.dow-row {
+display: grid;
+grid-template-columns: repeat(7, 1fr);
+gap: 3px;
+margin-bottom: 4px;
+}
+
+.dow {
+text-align: center;
+font-size: 9px;
+color: #3a6a4a;
+letter-spacing: 1px;
+padding: 2px 0;
+}
+
+.grid {
+display: grid;
+grid-template-columns: repeat(7, 1fr);
+gap: 3px;
+}
+
+.cell {
+aspect-ratio: 1;
+border-radius: 9px;
+cursor: pointer;
+transition: transform 0.12s, box-shadow 0.12s;
+position: relative;
+user-select: none;
+background: #111d15;
+border: 1px solid #182e20;
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+padding: 3px 2px;
+min-height: 42px;
+}
+
+.cell:not(.future):not(.empty):not(.before-start):active {
+transform: scale(1.05);
+}
+
+.cell.empty, .cell.before-start {
+background: transparent;
+border: none;
+cursor: default;
+}
+
+.cell.future {
+opacity: 0.3;
+cursor: default;
+}
+
+.cell.today-cell {
+border: 1.5px solid #7fffc4;
+box-shadow: 0 0 0 2px rgba(127, 255, 196, 0.2);
+}
+
+.cell.pulse { animation: pulseAnim 0.5s ease; }
+
+@keyframes pulseAnim {
+0% { transform: scale(1); }
+40% { transform: scale(1.15); }
+100% { transform: scale(1); }
+}
+
+.cell-day {
+font-size: 9px;
+color: #4a6a55;
+margin-bottom: 1px;
+line-height: 1;
+}
+
+.cell.today-cell .cell-day {
+color: #7fffc4;
+font-weight: 700;
+}
+
+.cell-value {
+font-size: 13px;
+font-weight: 500;
+color: #7fffc4;
+line-height: 1;
+}
+
+.cell-value.empty {
+font-size: 10px;
+color: #253d2e;
+font-weight: 300;
+}
+
+.cell-value.rest {
+color: #4a7a5a;
+font-size: 12px;
+}
+
+/* Heat levels */
+.heat-1 { background: #0f2016; }
+.heat-2 { background: #1a3a2a; }
+.heat-3 { background: #1f5c3a; }
+.heat-4 { background: #27864f; }
+.heat-5 { background: #2dba66; }
+.heat-5 .cell-value { color: #041209; font-weight: 700; }
+.heat-5 .cell-day { color: #041209; }
+
+.cell.rest {
+background: #0e1a12;
+border-color: #1a3a25;
+}
+
+.legend {
+display: flex;
+align-items: center;
+gap: 4px;
+margin-top: 10px;
+justify-content: center;
+}
+
+.legend-label {
+font-size: 8px;
+color: #3a5a45;
+letter-spacing: 1px;
+}
+
+.legend-box {
+width: 10px;
+height: 10px;
+border-radius: 2px;
+border: 1px solid #1a3a25;
+}
+
+/* HINT */
+.hint {
+margin-top: 10px;
+font-size: 9px;
+color: #2a4a35;
+letter-spacing: 1px;
+text-align: center;
+}
+
+/* MODAL */
+.modal-bg {
+position: fixed;
+inset: 0;
+background: rgba(0, 0, 0, 0.8);
+display: none;
+align-items: center;
+justify-content: center;
+z-index: 100;
+padding: 20px;
+backdrop-filter: blur(4px);
+}
+
+.modal-bg.open { display: flex; }
+
+.modal {
+background: #0d1810;
+border: 1px solid #2dba66;
+border-radius: 16px;
+padding: 20px;
+width: 100%;
+max-width: 280px;
+box-shadow: 0 0 40px rgba(45, 186, 102, 0.2);
+}
+
+.modal-date {
+font-family: ‘Syne’, sans-serif;
+font-size: 14px;
+color: #7fffc4;
+margin-bottom: 3px;
+letter-spacing: 1px;
+}
+
+.modal-sub {
+font-size: 9px;
+color: #4a7a5a;
+letter-spacing: 2px;
+margin-bottom: 14px;
+}
+
+.modal-input {
+width: 100%;
+background: #0a0f0c;
+border: 1.5px solid #1f3d28;
+border-radius: 8px;
+color: #7fffc4;
+font-family: inherit;
+font-size: 24px;
+text-align: center;
+padding: 12px;
+outline: none;
+margin-bottom: 10px;
+}
+
+.modal-input:focus {
+border-color: #2dba66;
+box-shadow: 0 0 0 2px rgba(45, 186, 102, 0.2);
+}
+
+.modal-rest {
+width: 100%;
+background: transparent;
+border: 1px solid #1f3d28;
+color: #4a7a5a;
+padding: 8px;
+font-family: inherit;
+font-size: 10px;
+letter-spacing: 1.5px;
+cursor: pointer;
+border-radius: 8px;
+margin-bottom: 10px;
+transition: all 0.15s;
+}
+
+.modal-rest.active {
+color: #7fffc4;
+border-color: #2dba66;
+background: #0e1a12;
+}
+
+.modal-actions {
+display: flex;
+gap: 6px;
+}
+
+.mbtn {
+flex: 1;
+padding: 10px;
+border-radius: 8px;
+font-family: inherit;
+font-size: 11px;
+letter-spacing: 1px;
+cursor: pointer;
+border: 1px solid #1f3d28;
+background: transparent;
+color: #c8e6c9;
+transition: all 0.15s;
+}
+
+.mbtn.primary {
+background: #2dba66;
+color: #0a0f0c;
+border-color: #2dba66;
+font-weight: 700;
+}
+
+.mbtn.primary:hover { background: #7fffc4; }
+
+.mbtn.danger {
+color: #e67a7a;
+border-color: #3d1f1f;
+}
+
+/* TOAST */
+.toast {
+position: fixed;
+bottom: 30px;
+left: 50%;
+transform: translateX(-50%) translateY(100px);
+background: #2dba66;
+color: #0a0f0c;
+padding: 10px 18px;
+font-family: inherit;
+font-size: 11px;
+letter-spacing: 1.5px;
+font-weight: 500;
+z-index: 200;
+border-radius: 8px;
+transition: transform 0.3s ease;
+box-shadow: 0 4px 20px rgba(45, 186, 102, 0.3);
+}
+
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* FOOTER (reset link) */
+.reset-link {
+margin-top: 12px;
+background: none;
+border: none;
+color: #2a4a35;
+font-family: inherit;
+font-size: 9px;
+letter-spacing: 1px;
+cursor: pointer;
+}
+
+.reset-link:hover { color: #e67a7a; }
+
+/* Small screens tweak */
+@media (max-height: 700px) {
+.stat-box { padding: 8px 14px; }
+.stat-value { font-size: 19px; }
+.title { font-size: 22px; }
+.cal { padding: 12px 12px 10px; }
+.cell { min-height: 38px; }
+}
+</style>
+
+</head>
+<body>
+
+<div class="header">
+  <div class="title">LIEGESTÜTZ</div>
+  <div class="subtitle">TRACKER</div>
+</div>
+
+<!-- Goals (compact chips) -->
+
+<div class="goals">
+  <div class="goal-chip" onclick="editGoal('daily', this)">
+    <span class="goal-chip-label">TAG</span>
+    <span class="goal-chip-value" id="dailyGoalDisplay">50</span>
+  </div>
+  <div class="goal-chip" onclick="editGoal('monthly', this)">
+    <span class="goal-chip-label">MONAT</span>
+    <span class="goal-chip-value" id="monthlyGoalDisplay">1500</span>
+  </div>
+</div>
+
+<!-- Stats -->
+
+<div class="stats">
+  <div class="stat-box">
+    <div class="stat-value" id="monthTotal">0</div>
+    <div class="stat-label">MONAT</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-value warn" id="streakVal">0</div>
+    <div class="stat-label">STREAK</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-value" id="bestDay">–</div>
+    <div class="stat-label">BESTAG</div>
+  </div>
+</div>
+
+<!-- Calendar -->
+
+<div class="cal">
+  <div class="cal-nav">
+    <button class="nav-btn" id="prevBtn" onclick="prevMonth()">‹</button>
+    <div class="cal-title" id="calTitle">—</div>
+    <button class="nav-btn" id="nextBtn" onclick="nextMonth()">›</button>
+  </div>
+
+  <div class="month-progress" id="monthProgress">—</div>
+
+  <div class="dow-row">
+    <div class="dow">Mo</div>
+    <div class="dow">Di</div>
+    <div class="dow">Mi</div>
+    <div class="dow">Do</div>
+    <div class="dow">Fr</div>
+    <div class="dow">Sa</div>
+    <div class="dow">So</div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="legend">
+    <span class="legend-label">WENIG</span>
+    <div class="legend-box heat-1"></div>
+    <div class="legend-box heat-2"></div>
+    <div class="legend-box heat-3"></div>
+    <div class="legend-box heat-4"></div>
+    <div class="legend-box heat-5"></div>
+    <span class="legend-label">ZIEL ✓</span>
+  </div>
+</div>
+
+<div class="hint">TIPP AUF EINEN TAG UM EINZUTRAGEN</div>
+
+<button class="reset-link" onclick="resetAll()">· ALLE DATEN LÖSCHEN ·</button>
+
+<!-- Modal -->
+
+<div class="modal-bg" id="modalBg" onclick="if(event.target.id==='modalBg')closeEditor()">
+  <div class="modal">
+    <div class="modal-date" id="modalDate">—</div>
+    <div class="modal-sub">LIEGESTÜTZE EINTRAGEN</div>
+    <input type="number" class="modal-input" id="modalInput" placeholder="0" min="0" inputmode="numeric">
+    <button class="modal-rest" id="modalRestBtn" onclick="toggleModalRest()">☾ ALS RUHETAG MARKIEREN</button>
+    <div class="modal-actions">
+      <button class="mbtn danger" onclick="clearDay()">LEEREN</button>
+      <button class="mbtn" onclick="closeEditor()">ABBRUCH</button>
+      <button class="mbtn primary" onclick="saveDay()">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// LIEGESTÜTZ TRACKER
+// ═══════════════════════════════════════════
+
+const START_DATE = new Date(2026, 3, 1); // April 1, 2026
+const STORAGE_KEY = 'pushup-calendar-v3';
+
+const MONTH_NAMES = [
+  'Januar','Februar','März','April','Mai','Juni',
+  'Juli','August','September','Oktober','November','Dezember'
+];
+
+let state = {
+  entries: {},     // { "2026-04-21": { count: 30, rest: false } }
+  dailyGoal: 50,
+  monthlyGoal: 1500,
+};
+
+const today = new Date();
+let viewYear = today.getFullYear();
+let viewMonth = today.getMonth();
+let editingKey = null;
+let pulseKey = null;
+
+// ─── Helpers ───
+function dateKey(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function todayKey() {
+  const n = new Date();
+  return dateKey(n.getFullYear(), n.getMonth(), n.getDate());
+}
+function parseKey(k) {
+  const [y,m,d] = k.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+function getDaysInMonth(y, m) { return new Date(y, m+1, 0).getDate(); }
+function getFirstDayOfMonth(y, m) {
+  let d = new Date(y, m, 1).getDay();
+  return (d + 6) % 7; // Mon=0
+}
+
+// ─── Persistence ───
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) state = { ...state, ...JSON.parse(raw) };
+  } catch(e) {}
+}
+
+// ─── Stats ───
+function getMonthTotal(y, m) {
+  let t = 0;
+  for (const k in state.entries) {
+    const d = parseKey(k);
+    if (d.getFullYear()===y && d.getMonth()===m) {
+      const e = state.entries[k];
+      if (!e.rest) t += e.count;
+    }
+  }
+  return t;
+}
+function getMaxDayInMonth(y, m) {
+  let max = 0;
+  for (const k in state.entries) {
+    const d = parseKey(k);
+    if (d.getFullYear()===y && d.getMonth()===m) {
+      const e = state.entries[k];
+      if (!e.rest && e.count > max) max = e.count;
+    }
+  }
+  return max;
+}
+function getGlobalBest() {
+  let max = 0;
+  for (const k in state.entries) {
+    const e = state.entries[k];
+    if (!e.rest && e.count > max) max = e.count;
+  }
+  return max;
+}
+function getStreak() {
+  let streak = 0;
+  const now = new Date();
+  for (let i = 0; i < 2000; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    if (d < START_DATE) break;
+    const e = state.entries[dateKey(d.getFullYear(), d.getMonth(), d.getDate())];
+    if (e && (e.count > 0 || e.rest)) streak++;
+    else if (i === 0) continue; // today empty doesn't break
+    else break;
+  }
+  return streak;
+}
+
+// ─── Heat level: relative to daily goal ───
+function heatLevel(count) {
+  const g = state.dailyGoal || 50;
+  if (count === 0) return 0;
+  if (count >= g) return 5;
+  if (count >= g * 0.75) return 4;
+  if (count >= g * 0.5) return 3;
+  if (count >= g * 0.25) return 2;
+  return 1;
+}
+
+// ─── Actions ───
+function openEditor(key) {
+  const d = parseKey(key);
+  const now = new Date();
+  if (d > now && key !== todayKey()) return;
+  if (d < START_DATE) return;
+
+  editingKey = key;
+  const dStr = d.toLocaleDateString('de-DE', {
+    weekday: 'long', day: 'numeric', month: 'long'
+  });
+  document.getElementById('modalDate').textContent = dStr;
+
+  const entry = state.entries[key];
+  const input = document.getElementById('modalInput');
+  input.value = (entry && !entry.rest && entry.count) ? entry.count : '';
+  updateRestBtn();
+
+  document.getElementById('modalBg').classList.add('open');
+  setTimeout(() => input.focus(), 100);
+}
+
+function closeEditor() {
+  document.getElementById('modalBg').classList.remove('open');
+  editingKey = null;
+}
+
+function saveDay() {
+  if (!editingKey) return;
+  const val = parseInt(document.getElementById('modalInput').value);
+
+  if (val && val > 0) {
+    const prevBest = getGlobalBest();
+    const prev = state.entries[editingKey];
+    const wasRest = prev && prev.rest;
+    state.entries[editingKey] = { count: val, rest: false };
+
+    pulseKey = editingKey;
+    setTimeout(() => { pulseKey = null; render(); }, 550);
+
+    if (!wasRest) {
+      if (val > prevBest && prevBest > 0) showToast('🏆 NEUER REKORD');
+      else if (val >= state.dailyGoal) showToast('🎯 TAGESZIEL ERREICHT');
+    }
+  } else {
+    delete state.entries[editingKey];
+  }
+
+  save();
+  render();
+  closeEditor();
+}
+
+function clearDay() {
+  if (!editingKey) return;
+  delete state.entries[editingKey];
+  save();
+  render();
+  closeEditor();
+}
+
+function toggleModalRest() {
+  if (!editingKey) return;
+  const e = state.entries[editingKey];
+  const isRest = e && e.rest;
+  if (isRest) {
+    delete state.entries[editingKey];
+  } else {
+    state.entries[editingKey] = { count: 0, rest: true };
+    document.getElementById('modalInput').value = '';
+  }
+  save();
+  updateRestBtn();
+  render();
+}
+
+function updateRestBtn() {
+  const e = state.entries[editingKey];
+  const btn = document.getElementById('modalRestBtn');
+  const isRest = e && e.rest;
+  btn.classList.toggle('active', isRest);
+  btn.textContent = isRest ? '☾ RUHETAG AKTIV' : '☾ ALS RUHETAG MARKIEREN';
+}
+
+function editGoal(type, chip) {
+  const current = type === 'daily' ? state.dailyGoal : state.monthlyGoal;
+  const valueEl = chip.querySelector('.goal-chip-value');
+
+  // Replace display with input
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.className = 'goal-chip-edit';
+  input.value = current;
+  input.inputMode = 'numeric';
+  input.min = '0';
+
+  valueEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const commit = () => {
+    const v = parseInt(input.value);
+    if (type === 'daily') state.dailyGoal = v > 0 ? v : 0;
+    else state.monthlyGoal = v > 0 ? v : 0;
+    save();
+    render();
+  };
+
+  input.addEventListener('blur', commit);
+  input.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') input.blur();
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { render(); }
+  });
+}
+
+function prevMonth() {
+  if (viewMonth === 0) { viewMonth = 11; viewYear--; }
+  else viewMonth--;
+  render();
+}
+function nextMonth() {
+  if (viewMonth === 11) { viewMonth = 0; viewYear++; }
+  else viewMonth++;
+  render();
+}
+
+function resetAll() {
+  if (!confirm('Wirklich alle Daten löschen?')) return;
+  state = { entries: {}, dailyGoal: 50, monthlyGoal: 1500 };
+  save();
+  render();
+}
+
+// ─── Render ───
+function render() {
+  // Goals
+  document.getElementById('dailyGoalDisplay').textContent = state.dailyGoal || '—';
+  document.getElementById('monthlyGoalDisplay').textContent = state.monthlyGoal || '—';
+  document.querySelectorAll('.goal-chip-value').forEach(el => {
+    el.classList.toggle('empty', !((el.id === 'dailyGoalDisplay' ? state.dailyGoal : state.monthlyGoal)));
+  });
+
+  // Recreate goal-chip display if input is lingering from editGoal
+  document.querySelectorAll('.goal-chip-edit').forEach(input => {
+    const chip = input.closest('.goal-chip');
+    const isDaily = chip.querySelector('.goal-chip-label').textContent === 'TAG';
+    const span = document.createElement('span');
+    span.className = 'goal-chip-value' + ((isDaily ? state.dailyGoal : state.monthlyGoal) ? '' : ' empty');
+    span.id = isDaily ? 'dailyGoalDisplay' : 'monthlyGoalDisplay';
+    span.textContent = (isDaily ? state.dailyGoal : state.monthlyGoal) || '—';
+    input.replaceWith(span);
+  });
+
+  // Stats — monthTotal shown for viewed month
+  const monthSum = getMonthTotal(viewYear, viewMonth);
+  document.getElementById('monthTotal').textContent = monthSum;
+
+  const streak = getStreak();
+  const streakEl = document.getElementById('streakVal');
+  streakEl.textContent = streak + (streak > 0 ? ' 🔥' : '');
+  streakEl.classList.toggle('dim', streak === 0);
+  streakEl.classList.toggle('warn', streak > 0);
+
+  const best = getGlobalBest();
+  document.getElementById('bestDay').textContent = best > 0 ? best : '–';
+
+  // Cal title + progress
+  document.getElementById('calTitle').textContent = `${MONTH_NAMES[viewMonth]} ${viewYear}`;
+
+  const progEl = document.getElementById('monthProgress');
+  if (state.monthlyGoal > 0) {
+    const pct = Math.round((monthSum / state.monthlyGoal) * 100);
+    const reached = monthSum >= state.monthlyGoal;
+    progEl.innerHTML = `<span class="${reached ? 'goal-reached' : 'done'}">${monthSum}</span> / ${state.monthlyGoal} · ${pct}%${reached ? ' ✓' : ''}`;
+  } else {
+    progEl.innerHTML = `<span class="done">${monthSum}</span> LIEGESTÜTZE`;
+  }
+
+  // Disable next button if we're at current month
+  const now = new Date();
+  const atCurrentMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth();
+  document.getElementById('nextBtn').disabled = atCurrentMonth;
+
+  // Disable prev button if we'd go before start
+  const atStart = viewYear === START_DATE.getFullYear() && viewMonth === START_DATE.getMonth();
+  document.getElementById('prevBtn').disabled = atStart;
+
+  renderGrid();
+}
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+
+  const days = getDaysInMonth(viewYear, viewMonth);
+  const offset = getFirstDayOfMonth(viewYear, viewMonth);
+  const now = new Date();
+  const todayK = todayKey();
+
+  for (let i = 0; i < offset; i++) {
+    const c = document.createElement('div');
+    c.className = 'cell empty';
+    grid.appendChild(c);
+  }
+
+  for (let d = 1; d <= days; d++) {
+    const date = new Date(viewYear, viewMonth, d);
+    const k = dateKey(viewYear, viewMonth, d);
+    const entry = state.entries[k];
+    const isFuture = date > now && k !== todayK;
+    const isBeforeStart = date < START_DATE;
+    const isToday = k === todayK;
+
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    if (pulseKey === k) cell.classList.add('pulse');
+
+    if (isBeforeStart) {
+      cell.classList.add('before-start');
+    } else if (isFuture) {
+      cell.classList.add('future');
+    }
+    if (isToday && !isBeforeStart) cell.classList.add('today-cell');
+
+    // Day number
+    const dayLbl = document.createElement('div');
+    dayLbl.className = 'cell-day';
+    dayLbl.textContent = d;
+    cell.appendChild(dayLbl);
+
+    // Value
+    const val = document.createElement('div');
+    val.className = 'cell-value';
+
+    if (!isBeforeStart && !isFuture) {
+      if (entry && entry.rest) {
+        cell.classList.add('rest');
+        val.classList.add('rest');
+        val.textContent = '☾';
+      } else if (entry && entry.count > 0) {
+        cell.classList.add('heat-' + heatLevel(entry.count));
+        val.textContent = entry.count;
+      } else {
+        val.classList.add('empty');
+        val.textContent = '·';
+      }
+
+      cell.onclick = () => openEditor(k);
+    } else if (!isBeforeStart && isFuture) {
+      val.classList.add('empty');
+      val.textContent = '·';
+    }
+
+    cell.appendChild(val);
+    grid.appendChild(cell);
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toast);
+  window._toast = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// Keyboard
+document.getElementById('modalInput').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') saveDay();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeEditor();
+});
+
+// Service worker for PWA offline support
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  });
+}
+
+// Boot
+load();
+render();
+</script>
+
+</body>
+</html>

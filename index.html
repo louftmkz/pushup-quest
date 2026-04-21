@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="Liegestütz">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <title>Liegestütz Tracker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -92,7 +93,15 @@ font-weight: 500;
 
 .goal-chip-value.empty { color: #4a7a5a; }
 
-.goal-chip-edit {
+.goal-month-hint {
+font-size: 8px;
+color: #2dba66;
+letter-spacing: 1.5px;
+text-align: center;
+margin-bottom: 6px;
+opacity: 0.7;
+min-height: 12px;
+}
 width: 50px;
 background: transparent;
 border: none;
@@ -509,6 +518,8 @@ cursor: pointer;
   </div>
 </div>
 
+<div class="goal-month-hint" id="goalMonthHint"></div>
+
 <!-- Stats -->
 
 <div class="stats">
@@ -522,7 +533,7 @@ cursor: pointer;
   </div>
   <div class="stat-box">
     <div class="stat-value" id="bestDay">–</div>
-    <div class="stat-label">BESTAG</div>
+    <div class="stat-label">BESTTAG</div>
   </div>
 </div>
 
@@ -596,9 +607,10 @@ const MONTH_NAMES = [
 ];
 
 let state = {
-  entries: {},     // { "2026-04-21": { count: 30, rest: false } }
-  dailyGoal: 50,
-  monthlyGoal: 1500,
+  entries: {},        // { "2026-04-21": { count: 30, rest: false } }
+  dailyGoal: 50,      // global default daily goal
+  monthlyGoal: 1500,  // global default monthly goal
+  monthGoals: {},     // { "2026-04": { daily: 60, monthly: 1800 } }
 };
 
 const today = new Date();
@@ -626,6 +638,22 @@ function getFirstDayOfMonth(y, m) {
 }
 
 // ─── Persistence ───
+function monthKey(y, m) {
+  return `${y}-${String(m+1).padStart(2,'0')}`;
+}
+function getEffectiveDailyGoal(y, m) {
+  const mk = monthKey(y, m);
+  return (state.monthGoals[mk] && state.monthGoals[mk].daily) || state.dailyGoal || 50;
+}
+function getEffectiveMonthlyGoal(y, m) {
+  const mk = monthKey(y, m);
+  return (state.monthGoals[mk] && state.monthGoals[mk].monthly) || state.monthlyGoal || 1500;
+}
+function setMonthGoal(y, m, type, val) {
+  const mk = monthKey(y, m);
+  if (!state.monthGoals[mk]) state.monthGoals[mk] = {};
+  state.monthGoals[mk][type] = val;
+}
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
 }
@@ -684,7 +712,7 @@ function getStreak() {
 
 // ─── Heat level: relative to daily goal ───
 function heatLevel(count) {
-  const g = state.dailyGoal || 50;
+  const g = getEffectiveDailyGoal(viewYear, viewMonth);
   if (count === 0) return 0;
   if (count >= g) return 5;
   if (count >= g * 0.75) return 4;
@@ -735,7 +763,7 @@ function saveDay() {
 
     if (!wasRest) {
       if (val > prevBest && prevBest > 0) showToast('🏆 NEUER REKORD');
-      else if (val >= state.dailyGoal) showToast('🎯 TAGESZIEL ERREICHT');
+      else if (val >= getEffectiveDailyGoal(viewYear, viewMonth)) showToast('🎯 TAGESZIEL ERREICHT');
     }
   } else {
     delete state.entries[editingKey];
@@ -778,7 +806,7 @@ function updateRestBtn() {
 }
 
 function editGoal(type, chip) {
-  const current = type === 'daily' ? state.dailyGoal : state.monthlyGoal;
+  const current = type === 'daily' ? getEffectiveDailyGoal(viewYear, viewMonth) : getEffectiveMonthlyGoal(viewYear, viewMonth);
   const valueEl = chip.querySelector('.goal-chip-value');
 
   // Replace display with input
@@ -795,8 +823,9 @@ function editGoal(type, chip) {
 
   const commit = () => {
     const v = parseInt(input.value);
-    if (type === 'daily') state.dailyGoal = v > 0 ? v : 0;
-    else state.monthlyGoal = v > 0 ? v : 0;
+    const val = v > 0 ? v : 0;
+    // Save as month-specific override
+    setMonthGoal(viewYear, viewMonth, type, val);
     save();
     render();
   };
@@ -823,21 +852,31 @@ function nextMonth() {
 
 function resetAll() {
   if (!confirm('Wirklich alle Daten löschen?')) return;
-  state = { entries: {}, dailyGoal: 50, monthlyGoal: 1500 };
+  state = { entries: {}, dailyGoal: 50, monthlyGoal: 1500, monthGoals: {} };
   save();
   render();
 }
 
 // ─── Render ───
 function render() {
-  // Goals
-  document.getElementById('dailyGoalDisplay').textContent = state.dailyGoal || '—';
-  document.getElementById('monthlyGoalDisplay').textContent = state.monthlyGoal || '—';
+  // Goals — show effective goals for current viewed month
+  const effDaily = getEffectiveDailyGoal(viewYear, viewMonth);
+  const effMonthly = getEffectiveMonthlyGoal(viewYear, viewMonth);
+  document.getElementById('dailyGoalDisplay').textContent = effDaily || '—';
+  document.getElementById('monthlyGoalDisplay').textContent = effMonthly || '—';
   document.querySelectorAll('.goal-chip-value').forEach(el => {
-    el.classList.toggle('empty', !((el.id === 'dailyGoalDisplay' ? state.dailyGoal : state.monthlyGoal)));
+    el.classList.toggle('empty', !((el.id === 'dailyGoalDisplay' ? effDaily : effMonthly)));
   });
 
-  // Recreate goal-chip display if input is lingering from editGoal
+  // Month goal hint
+  const mk = monthKey(viewYear, viewMonth);
+  const hasMonthGoal = state.monthGoals[mk] && (state.monthGoals[mk].daily || state.monthGoals[mk].monthly);
+  const hintEl = document.getElementById('goalMonthHint');
+  if (hintEl) {
+    const now2 = new Date();
+    const isCurrentMonth = viewYear === now2.getFullYear() && viewMonth === now2.getMonth();
+    hintEl.textContent = hasMonthGoal ? `ZIELE FÜR ${MONTH_NAMES[viewMonth].toUpperCase()}` : (isCurrentMonth ? '' : `STANDARD-ZIELE · TIPPEN ZUM ANPASSEN`);
+  }
   document.querySelectorAll('.goal-chip-edit').forEach(input => {
     const chip = input.closest('.goal-chip');
     const isDaily = chip.querySelector('.goal-chip-label').textContent === 'TAG';
@@ -865,18 +904,16 @@ function render() {
   document.getElementById('calTitle').textContent = `${MONTH_NAMES[viewMonth]} ${viewYear}`;
 
   const progEl = document.getElementById('monthProgress');
-  if (state.monthlyGoal > 0) {
-    const pct = Math.round((monthSum / state.monthlyGoal) * 100);
-    const reached = monthSum >= state.monthlyGoal;
-    progEl.innerHTML = `<span class="${reached ? 'goal-reached' : 'done'}">${monthSum}</span> / ${state.monthlyGoal} · ${pct}%${reached ? ' ✓' : ''}`;
+  if (effMonthly > 0) {
+    const pct = Math.round((monthSum / effMonthly) * 100);
+    const reached = monthSum >= effMonthly;
+    progEl.innerHTML = `<span class="${reached ? 'goal-reached' : 'done'}">${monthSum}</span> / ${effMonthly} · ${pct}%${reached ? ' ✓' : ''}`;
   } else {
     progEl.innerHTML = `<span class="done">${monthSum}</span> LIEGESTÜTZE`;
   }
 
-  // Disable next button if we're at current month
-  const now = new Date();
-  const atCurrentMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth();
-  document.getElementById('nextBtn').disabled = atCurrentMonth;
+  // Disable next button: no limit on future navigation
+  document.getElementById('nextBtn').disabled = false;
 
   // Disable prev button if we'd go before start
   const atStart = viewYear === START_DATE.getFullYear() && viewMonth === START_DATE.getMonth();

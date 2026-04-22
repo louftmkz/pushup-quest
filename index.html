@@ -66,11 +66,27 @@ letter-spacing: 3px;
 margin-top: 2px;
 }
 
-/* GOALS STRIP (compact, above stats) */
+/* GOALS BLOCK */
+.goals-block {
+display: flex;
+flex-direction: column;
+align-items: center;
+width: 100%;
+margin-bottom: 10px;
+gap: 6px;
+}
+
+.goals-title {
+font-size: 9px;
+color: #4a7a5a;
+letter-spacing: 2px;
+text-align: center;
+}
+
 .goals {
 display: flex;
 gap: 8px;
-margin-bottom: 10px;
+justify-content: center;
 }
 
 .goal-chip {
@@ -101,14 +117,45 @@ font-weight: 500;
 
 .goal-chip-value.empty { color: #4a7a5a; }
 
-.goal-month-hint {
-font-size: 8px;
-color: #2dba66;
-letter-spacing: 1.5px;
-text-align: center;
-margin-bottom: 6px;
-opacity: 0.7;
-min-height: 12px;
+.goal-carry-row {
+display: flex;
+align-items: center;
+gap: 6px;
+justify-content: center;
+cursor: pointer;
+user-select: none;
+}
+
+.goal-carry-box {
+width: 14px;
+height: 14px;
+border: 1px solid #2a4a35;
+border-radius: 3px;
+background: #0e1a12;
+display: flex;
+align-items: center;
+justify-content: center;
+flex-shrink: 0;
+transition: border-color 0.15s, background 0.15s;
+}
+
+.goal-carry-box.checked {
+border-color: #2dba66;
+background: #2dba66;
+}
+
+.goal-carry-box.checked::after {
+content: '✓';
+font-size: 9px;
+color: #0a0f0c;
+font-weight: 700;
+line-height: 1;
+}
+
+.goal-carry-label {
+font-size: 9px;
+color: #4a7a5a;
+letter-spacing: 1px;
 }
 
 .goal-chip-edit {
@@ -521,20 +568,25 @@ cursor: pointer;
   <div class="subtitle">TRACKER</div>
 </div>
 
-<!-- Goals (compact chips) -->
+<!-- Goals -->
 
-<div class="goals">
-  <div class="goal-chip" onclick="editGoal('daily', this)">
-    <span class="goal-chip-label">TAG</span>
-    <span class="goal-chip-value" id="dailyGoalDisplay">50</span>
+<div class="goals-block">
+  <div class="goals-title" id="goalsTitle">ZIELE FÜR MONAT</div>
+  <div class="goals">
+    <div class="goal-chip" onclick="editGoal('daily', this)">
+      <span class="goal-chip-label">TAG</span>
+      <span class="goal-chip-value empty" id="dailyGoalDisplay">—</span>
+    </div>
+    <div class="goal-chip" onclick="editGoal('monthly', this)">
+      <span class="goal-chip-label">MONAT</span>
+      <span class="goal-chip-value empty" id="monthlyGoalDisplay">—</span>
+    </div>
   </div>
-  <div class="goal-chip" onclick="editGoal('monthly', this)">
-    <span class="goal-chip-label">MONAT</span>
-    <span class="goal-chip-value" id="monthlyGoalDisplay">1500</span>
+  <div class="goal-carry-row" onclick="toggleCarry()">
+    <div class="goal-carry-box" id="carryBox"></div>
+    <span class="goal-carry-label" id="carryLabel">AB HIER FÜR ALLE FOLGEMONATE</span>
   </div>
 </div>
-
-<div class="goal-month-hint" id="goalMonthHint"></div>
 
 <!-- Stats -->
 
@@ -625,10 +677,9 @@ const MONTH_NAMES = [
 ];
 
 let state = {
-  entries: {},        // { "2026-04-21": { count: 30, rest: false } }
-  dailyGoal: 50,      // global default daily goal
-  monthlyGoal: 1500,  // global default monthly goal
-  monthGoals: {},     // { "2026-04": { daily: 60, monthly: 1800 } }
+  entries: {},      // { "2026-04-21": { count: 30, rest: false } }
+  monthGoals: {},   // { "2026-04": { daily: 60, monthly: 1800, carry: true } }
+  // carry: true means "use this month's goals for all future months until overridden"
 };
 
 const today = new Date();
@@ -659,18 +710,51 @@ function getFirstDayOfMonth(y, m) {
 function monthKey(y, m) {
   return `${y}-${String(m+1).padStart(2,'0')}`;
 }
+function monthKeyFromDate(d) {
+  return monthKey(d.getFullYear(), d.getMonth());
+}
+
+// Find the most recent carry-enabled month at or before (y, m)
+function getCarrySource(y, m) {
+  // Collect all months that have carry=true, sorted descending
+  const mk = monthKey(y, m);
+  const keys = Object.keys(state.monthGoals)
+    .filter(k => state.monthGoals[k].carry && k <= mk)
+    .sort()
+    .reverse();
+  return keys.length ? state.monthGoals[keys[0]] : null;
+}
+
 function getEffectiveDailyGoal(y, m) {
   const mk = monthKey(y, m);
-  return (state.monthGoals[mk] && state.monthGoals[mk].daily) || state.dailyGoal || 50;
+  const own = state.monthGoals[mk];
+  if (own && own.daily) return own.daily;
+  // Fall back to carry source
+  const carry = getCarrySource(y, m);
+  return carry ? carry.daily || 0 : 0;
 }
 function getEffectiveMonthlyGoal(y, m) {
   const mk = monthKey(y, m);
-  return (state.monthGoals[mk] && state.monthGoals[mk].monthly) || state.monthlyGoal || 1500;
+  const own = state.monthGoals[mk];
+  if (own && own.monthly) return own.monthly;
+  const carry = getCarrySource(y, m);
+  return carry ? carry.monthly || 0 : 0;
+}
+function getCarryActive(y, m) {
+  const mk = monthKey(y, m);
+  return !!(state.monthGoals[mk] && state.monthGoals[mk].carry);
 }
 function setMonthGoal(y, m, type, val) {
   const mk = monthKey(y, m);
   if (!state.monthGoals[mk]) state.monthGoals[mk] = {};
   state.monthGoals[mk][type] = val;
+}
+function toggleCarry() {
+  const mk = monthKey(viewYear, viewMonth);
+  if (!state.monthGoals[mk]) state.monthGoals[mk] = {};
+  state.monthGoals[mk].carry = !state.monthGoals[mk].carry;
+  save();
+  render();
 }
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
@@ -831,7 +915,7 @@ function editGoal(type, chip) {
   const input = document.createElement('input');
   input.type = 'number';
   input.className = 'goal-chip-edit';
-  input.value = current;
+  input.value = current || '';
   input.inputMode = 'numeric';
   input.min = '0';
 
@@ -842,7 +926,6 @@ function editGoal(type, chip) {
   const commit = () => {
     const v = parseInt(input.value);
     const val = v > 0 ? v : 0;
-    // Save as month-specific override
     setMonthGoal(viewYear, viewMonth, type, val);
     save();
     render();
@@ -870,7 +953,7 @@ function nextMonth() {
 
 function resetAll() {
   if (!confirm('Wirklich alle Daten löschen?')) return;
-  state = { entries: {}, dailyGoal: 50, monthlyGoal: 1500, monthGoals: {} };
+  state = { entries: {}, monthGoals: {} };
   save();
   render();
 }
@@ -880,28 +963,35 @@ function render() {
   // Goals — show effective goals for current viewed month
   const effDaily = getEffectiveDailyGoal(viewYear, viewMonth);
   const effMonthly = getEffectiveMonthlyGoal(viewYear, viewMonth);
-  document.getElementById('dailyGoalDisplay').textContent = effDaily || '—';
-  document.getElementById('monthlyGoalDisplay').textContent = effMonthly || '—';
-  document.querySelectorAll('.goal-chip-value').forEach(el => {
-    el.classList.toggle('empty', !((el.id === 'dailyGoalDisplay' ? effDaily : effMonthly)));
-  });
-
-  // Month goal hint
-  const mk = monthKey(viewYear, viewMonth);
-  const hasMonthGoal = state.monthGoals[mk] && (state.monthGoals[mk].daily || state.monthGoals[mk].monthly);
-  const hintEl = document.getElementById('goalMonthHint');
-  if (hintEl) {
-    const now2 = new Date();
-    const isCurrentMonth = viewYear === now2.getFullYear() && viewMonth === now2.getMonth();
-    hintEl.textContent = hasMonthGoal ? `ZIELE FÜR ${MONTH_NAMES[viewMonth].toUpperCase()}` : (isCurrentMonth ? '' : `STANDARD-ZIELE · TIPPEN ZUM ANPASSEN`);
+  const dailyEl = document.getElementById('dailyGoalDisplay');
+  const monthlyEl = document.getElementById('monthlyGoalDisplay');
+  if (dailyEl) {
+    dailyEl.textContent = effDaily || '—';
+    dailyEl.classList.toggle('empty', !effDaily);
   }
+  if (monthlyEl) {
+    monthlyEl.textContent = effMonthly || '—';
+    monthlyEl.classList.toggle('empty', !effMonthly);
+  }
+
+  // Goals title
+  const titleEl = document.getElementById('goalsTitle');
+  if (titleEl) titleEl.textContent = `ZIELE FÜR ${MONTH_NAMES[viewMonth].toUpperCase()}`;
+
+  // Carry checkbox
+  const carry = getCarryActive(viewYear, viewMonth);
+  const carryBox = document.getElementById('carryBox');
+  if (carryBox) carryBox.classList.toggle('checked', carry);
+
+  // Restore any lingering input fields
   document.querySelectorAll('.goal-chip-edit').forEach(input => {
     const chip = input.closest('.goal-chip');
     const isDaily = chip.querySelector('.goal-chip-label').textContent === 'TAG';
+    const val = isDaily ? effDaily : effMonthly;
     const span = document.createElement('span');
-    span.className = 'goal-chip-value' + ((isDaily ? state.dailyGoal : state.monthlyGoal) ? '' : ' empty');
+    span.className = 'goal-chip-value' + (val ? '' : ' empty');
     span.id = isDaily ? 'dailyGoalDisplay' : 'monthlyGoalDisplay';
-    span.textContent = (isDaily ? state.dailyGoal : state.monthlyGoal) || '—';
+    span.textContent = val || '—';
     input.replaceWith(span);
   });
 
@@ -926,8 +1016,10 @@ function render() {
     const pct = Math.round((monthSum / effMonthly) * 100);
     const reached = monthSum >= effMonthly;
     progEl.innerHTML = `<span class="${reached ? 'goal-reached' : 'done'}">${monthSum}</span> / ${effMonthly} · ${pct}%${reached ? ' ✓' : ''}`;
-  } else {
+  } else if (monthSum > 0) {
     progEl.innerHTML = `<span class="done">${monthSum}</span> LIEGESTÜTZE`;
+  } else {
+    progEl.innerHTML = '';
   }
 
   // Disable next button: no limit on future navigation

@@ -70,23 +70,37 @@ text-indent: 8px; /* visuell mittig: kompensiert das letter-spacing rechts */
 /* GOALS BLOCK */
 .goals-block {
 display: flex;
-flex-direction: column;
+flex-direction: row;
 align-items: center;
+justify-content: space-between;
 width: 100%;
 margin-bottom: 10px;
-gap: 6px;
+gap: 8px;
 }
 
-.goals-title {
-font-size: 9px;
+.goals-label-block {
+display: flex;
+flex-direction: column;
+line-height: 1.25;
+white-space: nowrap;
+}
+
+.goals-label-caption {
+font-size: 8px;
 color: #4a7a5a;
-letter-spacing: 2px;
-text-align: center;
+letter-spacing: 1.2px;
+}
+
+.goals-label-main {
+font-size: 10px;
+color: #7fffc4;
+letter-spacing: 1px;
+font-weight: 500;
 }
 
 .goals {
 display: flex;
-gap: 8px;
+gap: 6px;
 justify-content: center;
 }
 
@@ -94,10 +108,10 @@ justify-content: center;
 background: #0e1a12;
 border: 1px solid #1f3d28;
 border-radius: 10px;
-padding: 6px 12px;
+padding: 6px 9px;
 display: flex;
 align-items: center;
-gap: 6px;
+gap: 5px;
 cursor: pointer;
 transition: border-color 0.15s;
 }
@@ -121,10 +135,16 @@ font-weight: 500;
 .goal-carry-row {
 display: flex;
 align-items: center;
-gap: 6px;
-justify-content: center;
+gap: 5px;
 cursor: pointer;
 user-select: none;
+}
+
+.goal-carry-label-block {
+display: flex;
+flex-direction: column;
+line-height: 1.25;
+white-space: nowrap;
 }
 
 .goal-carry-box {
@@ -154,9 +174,9 @@ line-height: 1;
 }
 
 .goal-carry-label {
-font-size: 9px;
+font-size: 8px;
 color: #4a7a5a;
-letter-spacing: 1px;
+letter-spacing: 0.8px;
 }
 
 .goal-chip-edit {
@@ -585,7 +605,10 @@ cursor: pointer;
 <!-- Goals -->
 
 <div class="goals-block">
-  <div class="goals-title" id="goalsTitle">ZIELE FÜR MONAT</div>
+  <div class="goals-label-block">
+    <span class="goals-label-caption">ZIELE FÜR</span>
+    <span class="goals-label-main" id="goalsTitleMonth">MONAT</span>
+  </div>
   <div class="goals">
     <div class="goal-chip" onclick="editGoal('daily', this)">
       <span class="goal-chip-label">TAG</span>
@@ -598,7 +621,10 @@ cursor: pointer;
   </div>
   <div class="goal-carry-row" onclick="toggleCarry()">
     <div class="goal-carry-box" id="carryBox"></div>
-    <span class="goal-carry-label" id="carryLabel">AB HIER FÜR ALLE FOLGEMONATE</span>
+    <div class="goal-carry-label-block">
+      <span class="goal-carry-label">GILT FÜR</span>
+      <span class="goal-carry-label">FOLGEMONATE</span>
+    </div>
   </div>
 </div>
 
@@ -1052,9 +1078,9 @@ function render() {
     monthlyEl.classList.toggle('empty', !effMonthly);
   }
 
-  // Goals title
-  const titleEl = document.getElementById('goalsTitle');
-  if (titleEl) titleEl.textContent = `ZIELE FÜR ${MONTH_NAMES[viewMonth].toUpperCase()}`;
+  // Goals title — only the month part is dynamic ("ZIELE FÜR" steht im HTML)
+  const titleMonthEl = document.getElementById('goalsTitleMonth');
+  if (titleMonthEl) titleMonthEl.textContent = MONTH_NAMES[viewMonth].toUpperCase();
 
   // Carry checkbox
   const carry = getCarryActive(viewYear, viewMonth);

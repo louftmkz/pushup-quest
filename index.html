@@ -480,6 +480,19 @@ border-color: #2dba66;
 background: #0e1a12;
 }
 
+.modal-rest:disabled,
+.modal-rest.disabled {
+opacity: 0.45;
+cursor: not-allowed;
+}
+
+.modal-warn {
+color: #e6c87a;
+border-color: #3d361f;
+}
+
+.modal-warn:hover { background: #1a1610; }
+
 .modal-actions {
 display: flex;
 gap: 6px;
@@ -661,6 +674,20 @@ cursor: pointer;
   </div>
 </div>
 
+<!-- Reset Confirmation Modal -->
+<div class="modal-bg" id="resetModalBg" onclick="if(event.target.id==='resetModalBg')closeResetModal()">
+  <div class="modal">
+    <div class="modal-date">⚠ ALLE DATEN LÖSCHEN?</div>
+    <div class="modal-sub" style="margin-bottom:16px; line-height:1.5;">
+      Alle Eintragungen, Ruhetage und Ziele werden unwiderruflich entfernt. Dieser Schritt kann nicht rückgängig gemacht werden.
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn" onclick="closeResetModal()">ABBRUCH</button>
+      <button class="mbtn danger" onclick="confirmResetAll()">JA, LÖSCHEN</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -704,6 +731,25 @@ function getDaysInMonth(y, m) { return new Date(y, m+1, 0).getDate(); }
 function getFirstDayOfMonth(y, m) {
   let d = new Date(y, m, 1).getDay();
   return (d + 6) % 7; // Mon=0
+}
+
+// ─── Wochen-Helper (Mo-So, ISO-Style) ───
+function weekStartKey(d) {
+  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = (date.getDay() + 6) % 7; // Mon=0..Sun=6
+  date.setDate(date.getDate() - dow);
+  return dateKey(date.getFullYear(), date.getMonth(), date.getDate());
+}
+// Gibt es in derselben Woche bereits einen Ruhetag, der NICHT exceptKey ist?
+function hasRestInWeekExcept(d, exceptKey) {
+  const target = weekStartKey(d);
+  for (const k in state.entries) {
+    if (k === exceptKey) continue;
+    const e = state.entries[k];
+    if (!e || !e.rest) continue;
+    if (weekStartKey(parseKey(k)) === target) return true;
+  }
+  return false;
 }
 
 // ─── Persistence ───
@@ -798,6 +844,11 @@ function getGlobalBest() {
   return max;
 }
 function getStreak() {
+  // Streak-Regeln:
+  //   - Tag mit count > 0 → Streak +1
+  //   - Ruhetag → übersprungen (zählt nicht, bricht nicht)
+  //   - Heutiger leerer Tag → übersprungen (kein Bruch)
+  //   - Sonst leerer Tag → Streak endet
   let streak = 0;
   const now = new Date();
   for (let i = 0; i < 2000; i++) {
@@ -805,9 +856,10 @@ function getStreak() {
     d.setDate(now.getDate() - i);
     if (d < START_DATE) break;
     const e = state.entries[dateKey(d.getFullYear(), d.getMonth(), d.getDate())];
-    if (e && (e.count > 0 || e.rest)) streak++;
-    else if (i === 0) continue; // today empty doesn't break
-    else break;
+    if (e && e.rest) continue;            // Ruhetag: weder zählen noch brechen
+    if (e && e.count > 0) { streak++; continue; }
+    if (i === 0) continue;                // heute noch leer → ok
+    break;                                // echter Lücken-Tag → Streak vorbei
   }
   return streak;
 }
@@ -891,6 +943,11 @@ function toggleModalRest() {
   if (isRest) {
     delete state.entries[editingKey];
   } else {
+    // Limit: nur ein Ruhetag pro Woche
+    if (hasRestInWeekExcept(parseKey(editingKey), editingKey)) {
+      showToast('☾ NUR 1 RUHETAG PRO WOCHE');
+      return;
+    }
     state.entries[editingKey] = { count: 0, rest: true };
     document.getElementById('modalInput').value = '';
   }
@@ -903,8 +960,19 @@ function updateRestBtn() {
   const e = state.entries[editingKey];
   const btn = document.getElementById('modalRestBtn');
   const isRest = e && e.rest;
+  const weekBlocked = !isRest && hasRestInWeekExcept(parseKey(editingKey), editingKey);
+
   btn.classList.toggle('active', isRest);
-  btn.textContent = isRest ? '☾ RUHETAG AKTIV' : '☾ ALS RUHETAG MARKIEREN';
+  btn.classList.toggle('disabled', weekBlocked);
+  btn.disabled = weekBlocked;
+
+  if (isRest) {
+    btn.textContent = '☾ RUHETAG AKTIV';
+  } else if (weekBlocked) {
+    btn.textContent = '☾ WOCHE HAT BEREITS RUHETAG';
+  } else {
+    btn.textContent = '☾ ALS RUHETAG MARKIEREN';
+  }
 }
 
 function editGoal(type, chip) {
@@ -952,10 +1020,19 @@ function nextMonth() {
 }
 
 function resetAll() {
-  if (!confirm('Wirklich alle Daten löschen?')) return;
+  document.getElementById('resetModalBg').classList.add('open');
+}
+
+function closeResetModal() {
+  document.getElementById('resetModalBg').classList.remove('open');
+}
+
+function confirmResetAll() {
   state = { entries: {}, monthGoals: {} };
   save();
   render();
+  closeResetModal();
+  showToast('🗑 ALLE DATEN GELÖSCHT');
 }
 
 // ─── Render ───

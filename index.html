@@ -252,6 +252,50 @@ transition: color 0.15s;
 .lifetime-avg:hover { color: #2dba66; }
 .lifetime-avg:active { opacity: 0.6; }
 
+/* YEAR MINI-HEATMAP */
+.year-heat {
+display: flex;
+gap: 3px;
+margin-bottom: 12px;
+padding: 0 4px;
+}
+.year-month {
+flex: 1;
+min-width: 0;
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 2px;
+cursor: pointer;
+user-select: none;
+padding: 4px 0;
+border-radius: 6px;
+transition: transform 0.1s;
+}
+.year-month:active { transform: scale(0.94); }
+.year-cell {
+width: 100%;
+height: 14px;
+background: #0e1a12;
+border: 1px solid #1f3d28;
+border-radius: 3px;
+}
+.year-cell.heat-1 { background: #1a3a25; border-color: #1a3a25; }
+.year-cell.heat-2 { background: #2a5a3a; border-color: #2a5a3a; }
+.year-cell.heat-3 { background: #3d8050; border-color: #3d8050; }
+.year-cell.heat-4 { background: #2dba66; border-color: #2dba66; }
+.year-cell.heat-5 { background: #7fffc4; border-color: #7fffc4; }
+.year-cell.heat-over { background: #b07fff; border-color: #b07fff; box-shadow: 0 0 6px rgba(176, 127, 255, 0.4); }
+.year-cell.future { background: transparent; border-style: dashed; }
+.year-month.current .year-cell { outline: 1px solid #7fffc4; outline-offset: 1px; }
+.year-month.viewing .year-cell { outline: 1.5px solid #7fffc4; outline-offset: 1px; }
+.year-label {
+font-size: 7px;
+color: #4a7a5a;
+letter-spacing: 0.5px;
+}
+.year-month.viewing .year-label { color: #7fffc4; }
+
 .stat-box {
 background: #0e1a12;
 border: 1px solid #1f3d28;
@@ -933,6 +977,10 @@ margin-bottom: 2px;
   <span class="lifetime-avg" onclick="cycleAvgUnit()">Ø <strong id="lifetimeAvg">0</strong>/<strong id="lifetimeUnit">TAG</strong> ▾</span>
 </div>
 
+<!-- Year Mini-Heatmap (last 12 months) -->
+
+<div class="year-heat" id="yearHeat"></div>
+
 <!-- Calendar -->
 
 <div class="cal">
@@ -1483,6 +1531,7 @@ function confirmResetAll() {
 // ─── Render ───
 function render() {
   renderLifetime();
+  renderYearHeat();
   // Goals — show effective goals for current viewed month
   const effDaily = getEffectiveDailyGoal(viewYear, viewMonth);
   const effMonthly = getEffectiveMonthlyGoal(viewYear, viewMonth);
@@ -1801,6 +1850,54 @@ function renderLifetime() {
   const avg = days > 0 ? Math.round((total / days) * unit.mult) : 0;
   document.getElementById('lifetimeAvg').textContent = avg.toLocaleString('de-DE');
   document.getElementById('lifetimeUnit').textContent = unit.label;
+}
+
+// ─── Year Mini-Heatmap ───
+function jumpToMonth(y, m) {
+  viewYear = y;
+  viewMonth = m;
+  render();
+}
+function renderYearHeat() {
+  const container = document.getElementById('yearHeat');
+  if (!container) return;
+  const now = new Date();
+  // 12 Monate: heute - 11 bis heute
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ y: d.getFullYear(), m: d.getMonth() });
+  }
+  const monthShort = ['JAN','FEB','MRZ','APR','MAI','JUN','JUL','AUG','SEP','OKT','NOV','DEZ'];
+  let html = '';
+  for (const mo of months) {
+    const total = getMonthTotal(mo.y, mo.m);
+    const goal = getEffectiveMonthlyGoal(mo.y, mo.m);
+    const isCurrent = (mo.y === now.getFullYear() && mo.m === now.getMonth());
+    const isFuture = (mo.y > now.getFullYear()) || (mo.y === now.getFullYear() && mo.m > now.getMonth());
+    const isViewing = (mo.y === viewYear && mo.m === viewMonth);
+    let heatClass = '';
+    if (isFuture) heatClass = 'future';
+    else if (goal > 0) {
+      const pct = (total / goal) * 100;
+      if (pct >= 104) heatClass = 'heat-over';
+      else if (pct >= 100) heatClass = 'heat-5';
+      else if (pct >= 75) heatClass = 'heat-4';
+      else if (pct >= 50) heatClass = 'heat-3';
+      else if (pct >= 25) heatClass = 'heat-2';
+      else if (pct > 0)   heatClass = 'heat-1';
+    } else if (total > 0) {
+      heatClass = 'heat-2'; // Aktivität ohne Ziel
+    }
+    const classes = ['year-month'];
+    if (isCurrent) classes.push('current');
+    if (isViewing) classes.push('viewing');
+    html += `<div class="${classes.join(' ')}" onclick="jumpToMonth(${mo.y}, ${mo.m})">`;
+    html += `<div class="year-cell ${heatClass}"></div>`;
+    html += `<div class="year-label">${monthShort[mo.m]}</div>`;
+    html += `</div>`;
+  }
+  container.innerHTML = html;
 }
 
 // ─── Stats Helpers für Trophy-Detection ───

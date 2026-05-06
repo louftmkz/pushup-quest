@@ -1,6 +1,6 @@
 // Liegestütz Tracker Service Worker
 // Versionsnummer bei jedem Deployment erhöhen → Cache wird automatisch geleert
-const CACHE_NAME = 'pushup-tracker-v14';
+const CACHE_NAME = 'pushup-tracker-v15';
 const ASSETS = [
 './index.html',
 './manifest.json',

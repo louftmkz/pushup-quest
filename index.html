@@ -222,9 +222,35 @@ display: flex;
 flex-direction: row;
 flex-wrap: nowrap;
 gap: 10px;
-margin-bottom: 14px;
+margin-bottom: 8px;
 width: 100%;
 }
+
+.lifetime-stats {
+display: flex;
+justify-content: space-between;
+align-items: center;
+font-size: 9px;
+color: #4a7a5a;
+letter-spacing: 1.2px;
+padding: 0 6px;
+margin-bottom: 12px;
+}
+
+.lifetime-total strong,
+.lifetime-avg strong {
+color: #c8e6c9;
+font-weight: 500;
+}
+
+.lifetime-avg {
+cursor: pointer;
+user-select: none;
+transition: color 0.15s;
+}
+
+.lifetime-avg:hover { color: #2dba66; }
+.lifetime-avg:active { opacity: 0.6; }
 
 .stat-box {
 background: #0e1a12;
@@ -830,6 +856,13 @@ margin-bottom: 2px;
   </div>
 </div>
 
+<!-- Lifetime Stats Strip -->
+
+<div class="lifetime-stats">
+  <span class="lifetime-total">Σ <strong id="lifetimeCount">0</strong> IN <strong id="lifetimeDays">0</strong> TAGEN</span>
+  <span class="lifetime-avg" onclick="cycleAvgUnit()">Ø <strong id="lifetimeAvg">0</strong>/<strong id="lifetimeUnit">TAG</strong> ▾</span>
+</div>
+
 <!-- Calendar -->
 
 <div class="cal">
@@ -1007,8 +1040,12 @@ function getEffectiveMonthlyGoal(y, m) {
   const mk = monthKey(y, m);
   const own = state.monthGoals[mk];
   if (own && own.monthly) return own.monthly;
+  // Aus effektivem Daily ableiten (Coupling: monthly = daily × Tage_im_Monat)
+  // Dadurch passt sich z.B. bei Carry der Monat an unterschiedliche Monatslängen an
+  const dailyEff = getEffectiveDailyGoal(y, m);
+  if (dailyEff) return dailyEff * getDaysInMonth(y, m);
   const carry = getCarrySource(y, m);
-  return carry ? carry.monthly || 0 : 0;
+  return carry ? (carry.monthly || 0) : 0;
 }
 function getCarryActive(y, m) {
   const mk = monthKey(y, m);
@@ -1017,7 +1054,20 @@ function getCarryActive(y, m) {
 function setMonthGoal(y, m, type, val) {
   const mk = monthKey(y, m);
   if (!state.monthGoals[mk]) state.monthGoals[mk] = {};
-  state.monthGoals[mk][type] = val;
+  if (val <= 0) {
+    // Beide löschen wenn ein Wert auf 0 gesetzt wird (Goals sind gekoppelt)
+    state.monthGoals[mk].daily = 0;
+    state.monthGoals[mk].monthly = 0;
+    return;
+  }
+  const days = getDaysInMonth(y, m);
+  if (type === 'daily') {
+    state.monthGoals[mk].daily = val;
+    state.monthGoals[mk].monthly = val * days;
+  } else if (type === 'monthly') {
+    state.monthGoals[mk].monthly = val;
+    state.monthGoals[mk].daily = Math.ceil(val / days);
+  }
 }
 function toggleCarry() {
   const mk = monthKey(viewYear, viewMonth);
@@ -1265,6 +1315,7 @@ function confirmResetAll() {
 
 // ─── Render ───
 function render() {
+  renderLifetime();
   // Goals — show effective goals for current viewed month
   const effDaily = getEffectiveDailyGoal(viewYear, viewMonth);
   const effMonthly = getEffectiveMonthlyGoal(viewYear, viewMonth);
@@ -1453,6 +1504,46 @@ const CATEGORIES = [
   { id: 'life',   label: '∞ LIFETIME' },
   { id: 'neg',    label: '🩸 EGO-KRATZER' },
 ];
+
+// ─── Lifetime Stats Strip ───
+const AVG_UNITS = [
+  { id: 'day',   label: 'TAG',   mult: 1 },
+  { id: 'week',  label: 'WOCHE', mult: 7 },
+  { id: 'month', label: 'MONAT', mult: 30 },
+  { id: 'year',  label: 'JAHR',  mult: 365 },
+];
+let avgUnitIdx = 0;
+try {
+  const v = parseInt(localStorage.getItem('pushup-avgunit'));
+  if (!isNaN(v) && v >= 0 && v < AVG_UNITS.length) avgUnitIdx = v;
+} catch(e) {}
+
+function cycleAvgUnit() {
+  avgUnitIdx = (avgUnitIdx + 1) % AVG_UNITS.length;
+  try { localStorage.setItem('pushup-avgunit', String(avgUnitIdx)); } catch(e) {}
+  renderLifetime();
+}
+function getDaysSinceFirstEntry() {
+  const keys = Object.keys(state.entries).sort();
+  if (!keys.length) return 0;
+  const first = parseKey(keys[0]);
+  const now = new Date();
+  const t0 = new Date(first.getFullYear(), first.getMonth(), first.getDate());
+  const t1 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((t1 - t0) / 86400000) + 1; // inklusive ersten Tag
+}
+function renderLifetime() {
+  const cnt = document.getElementById('lifetimeCount');
+  if (!cnt) return;
+  const total = getLifetimeTotal();
+  const days = getDaysSinceFirstEntry();
+  cnt.textContent = total.toLocaleString('de-DE');
+  document.getElementById('lifetimeDays').textContent = days;
+  const unit = AVG_UNITS[avgUnitIdx];
+  const avg = days > 0 ? Math.round((total / days) * unit.mult) : 0;
+  document.getElementById('lifetimeAvg').textContent = avg.toLocaleString('de-DE');
+  document.getElementById('lifetimeUnit').textContent = unit.label;
+}
 
 // ─── Stats Helpers für Trophy-Detection ───
 function getLifetimeTotal() {
@@ -1845,8 +1936,31 @@ function renderTrophyModal() {
 
 // Boot
 load();
-// Migration: bei Erst-Load mit existierenden Daten alle bereits unlocked als gesehen markieren,
-// damit nicht 36 Toasts auf einmal feuern.
+
+// Migration: Goal-Coupling auf aktuellen + zukünftige Monate anwenden (Tag priorisiert).
+// Vergangene Monate (z.B. April 2026) bleiben unangetastet.
+(function migrateGoalCoupling() {
+  const now = new Date();
+  const currentMk = monthKey(now.getFullYear(), now.getMonth());
+  let changed = false;
+  for (const mk in state.monthGoals) {
+    if (mk < currentMk) continue;
+    const g = state.monthGoals[mk];
+    if (!g) continue;
+    const [y, m] = mk.split('-').map(Number);
+    const days = getDaysInMonth(y, m-1);
+    if (g.daily) {
+      const newMonthly = g.daily * days;
+      if (g.monthly !== newMonthly) { g.monthly = newMonthly; changed = true; }
+    } else if (g.monthly) {
+      const newDaily = Math.ceil(g.monthly / days);
+      if (g.daily !== newDaily) { g.daily = newDaily; changed = true; }
+    }
+  }
+  if (changed) save();
+})();
+
+// Migration Trophies: bei Erst-Load mit existierenden Daten alle bereits unlocked als gesehen markieren
 if (!state.seenTrophies) {
   state.seenTrophies = getUnlockedTrophyIds();
   save();

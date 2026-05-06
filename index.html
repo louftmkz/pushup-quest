@@ -1054,6 +1054,20 @@ margin-bottom: 2px;
   </div>
 </div>
 
+<!-- Export Confirmation Modal -->
+<div class="modal-bg" id="exportModalBg" onclick="if(event.target.id==='exportModalBg')closeExportModal()">
+  <div class="modal">
+    <div class="modal-date">💾 BACKUP HERUNTERLADEN?</div>
+    <div class="modal-sub" style="margin-bottom:16px; line-height:1.5;">
+      Erstellt eine JSON-Datei mit deinem gesamten Fortschritt (Tageseinträge, Monatsziele, Trophies). Du kannst sie z.B. in iCloud/Files speichern.
+    </div>
+    <div class="modal-actions">
+      <button class="mbtn" onclick="closeExportModal()">ABBRUCH</button>
+      <button class="mbtn primary" onclick="confirmExport()">DOWNLOAD</button>
+    </div>
+  </div>
+</div>
+
 <!-- Import Confirmation Modal -->
 <div class="modal-bg" id="importModalBg" onclick="if(event.target.id==='importModalBg')closeImportModal()">
   <div class="modal">
@@ -1442,6 +1456,16 @@ function closeResetModal() {
 
 // ─── Export / Import ───
 function exportData() {
+  document.getElementById('exportModalBg').classList.add('open');
+}
+function closeExportModal() {
+  document.getElementById('exportModalBg').classList.remove('open');
+}
+function confirmExport() {
+  closeExportModal();
+  doExport();
+}
+function doExport() {
   try {
     const payload = {
       version: 1,
@@ -1753,6 +1777,7 @@ document.addEventListener('keydown', (e) => {
     closeTrophies();
     closeResetModal();
     closeImportModal();
+    closeExportModal();
   }
 });
 

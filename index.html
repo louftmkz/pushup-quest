@@ -1707,6 +1707,33 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ─── Swipe-Navigation für Monate ───
+(function setupSwipe() {
+  const cal = document.querySelector('.cal');
+  if (!cal) return;
+  let startX = 0, startY = 0, startT = 0, swiping = false;
+  cal.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    startT = Date.now();
+    swiping = true;
+  }, { passive: true });
+  cal.addEventListener('touchend', (e) => {
+    if (!swiping) return;
+    swiping = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    const dt = Date.now() - startT;
+    // Horizontale Geste mit ≥50px Distanz, weniger als 600ms, nicht überwiegend vertikal
+    if (Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < 600) {
+      if (dx < 0) nextMonth();
+      else if (!document.getElementById('prevBtn').disabled) prevMonth();
+    }
+  }, { passive: true });
+})();
+
 // Service worker for PWA offline support
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

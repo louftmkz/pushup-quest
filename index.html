@@ -344,10 +344,11 @@ flex-wrap: wrap;
 font-size: 9px;
 letter-spacing: 0.8px;
 }
-.prog-delta.behind  { color: #e67a7a; }
-.prog-delta.ahead   { color: #7fffc4; }
-.prog-delta.on-pace { color: #4a7a5a; }
-.prog-delta.reached { color: #f9c74f; }
+.prog-delta.behind        { color: #e67a7a; }
+.prog-delta.ahead         { color: #7fffc4; }
+.prog-delta.on-pace       { color: #4a7a5a; }
+.prog-delta.reached       { color: #f9c74f; }
+.prog-delta.overperformed { color: #b07fff; font-weight: 500; }
 
 .prog-bar {
 position: relative;
@@ -363,9 +364,10 @@ background: #2dba66;
 border-radius: 2px;
 transition: width 0.3s ease, background 0.2s ease;
 }
-.prog-fill.behind  { background: #c47070; }
-.prog-fill.ahead   { background: #7fffc4; }
-.prog-fill.reached { background: #f9c74f; }
+.prog-fill.behind        { background: #c47070; }
+.prog-fill.ahead         { background: #7fffc4; }
+.prog-fill.reached       { background: #f9c74f; }
+.prog-fill.overperformed { background: #b07fff; box-shadow: 0 0 8px rgba(176, 127, 255, 0.4); }
 
 .prog-marker {
 position: absolute;
@@ -1436,9 +1438,14 @@ function render() {
       delta = monthSum - effMonthly;
     }
 
+    // Überperformed: Monat ist um UND > 104% erreicht
+    const overpct = (monthSum / effMonthly) * 100;
+    const isOverperformed = isPast && overpct > 104;
+
     // Fill-Farbklasse
     let fillClass = '';
-    if (reached) fillClass = 'reached';
+    if (isOverperformed) fillClass = 'overperformed';
+    else if (reached) fillClass = 'reached';
     else if (delta !== null) {
       if (delta < -effMonthly * 0.1) fillClass = 'behind';
       else if (delta > effMonthly * 0.1) fillClass = 'ahead';
@@ -1446,7 +1453,9 @@ function render() {
 
     // Delta-Text
     let deltaHtml = '';
-    if (reached) {
+    if (isOverperformed) {
+      deltaHtml = `<span class="prog-delta overperformed">🚀 ÜBERPERFORMED · ${Math.round(overpct)}%</span>`;
+    } else if (reached) {
       deltaHtml = `<span class="prog-delta reached">✓ erreicht</span>`;
     } else if (delta !== null) {
       const absD = Math.abs(delta);

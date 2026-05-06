@@ -284,8 +284,8 @@ border-radius: 3px;
 .year-cell.heat-2 { background: #2a5a3a; border-color: #2a5a3a; }
 .year-cell.heat-3 { background: #3d8050; border-color: #3d8050; }
 .year-cell.heat-4 { background: #2dba66; border-color: #2dba66; }
-.year-cell.heat-5 { background: #7fffc4; border-color: #7fffc4; }
-.year-cell.heat-over { background: #b07fff; border-color: #b07fff; box-shadow: 0 0 6px rgba(176, 127, 255, 0.4); }
+.year-cell.heat-5 { background: #2dba66; border-color: #2dba66; }
+.year-cell.heat-over { background: #f9c74f; border-color: #f9c74f; box-shadow: 0 0 6px rgba(249, 199, 79, 0.5); }
 .year-cell.future { background: transparent; border-style: dashed; }
 .year-month.current .year-cell { outline: 1px solid #7fffc4; outline-offset: 1px; }
 .year-month.viewing .year-cell { outline: 1.5px solid #7fffc4; outline-offset: 1px; }
@@ -373,7 +373,8 @@ letter-spacing: 1px;
 }
 
 .month-progress .done { color: #7fffc4; }
-.month-progress .goal-reached { color: #f9c74f; }
+.month-progress .goal-reached { color: #2dba66; }
+.month-progress .overperformed-num { color: #f9c74f; font-weight: 500; }
 
 .prog-line {
 display: flex;
@@ -391,8 +392,8 @@ letter-spacing: 0.8px;
 .prog-delta.behind        { color: #e67a7a; }
 .prog-delta.ahead         { color: #7fffc4; }
 .prog-delta.on-pace       { color: #4a7a5a; }
-.prog-delta.reached       { color: #f9c74f; }
-.prog-delta.overperformed { color: #b07fff; font-weight: 500; }
+.prog-delta.reached       { color: #2dba66; }
+.prog-delta.overperformed { color: #f9c74f; font-weight: 500; }
 
 .prog-bar {
 position: relative;
@@ -410,8 +411,8 @@ transition: width 0.3s ease, background 0.2s ease;
 }
 .prog-fill.behind        { background: #c47070; }
 .prog-fill.ahead         { background: #7fffc4; }
-.prog-fill.reached       { background: #f9c74f; }
-.prog-fill.overperformed { background: #b07fff; box-shadow: 0 0 8px rgba(176, 127, 255, 0.4); }
+.prog-fill.reached       { background: #2dba66; }
+.prog-fill.overperformed { background: #f9c74f; box-shadow: 0 0 8px rgba(249, 199, 79, 0.5); }
 
 .prog-marker {
 position: absolute;
@@ -527,6 +528,11 @@ font-size: 12px;
 .heat-5 { background: #2dba66; }
 .heat-5 .cell-value { color: #041209; font-weight: 700; }
 .heat-5 .cell-day { color: #041209; }
+
+/* Überperformed (>=104% of daily goal) — universelles Gold-Signal */
+.heat-over { background: #f9c74f; box-shadow: 0 0 8px rgba(249, 199, 79, 0.45); }
+.heat-over .cell-value { color: #2a1a04; font-weight: 700; }
+.heat-over .cell-day { color: #2a1a04; }
 
 .cell.rest {
 background: #0e1a12;
@@ -1289,9 +1295,12 @@ function getStreak() {
 }
 
 // ─── Heat level: relative to daily goal ───
+// Returns 'over' when ≥ 104% of daily goal (gold/überperformed),
+// 5 at goal, 1-4 below proportionally, 0 if no count.
 function heatLevel(count) {
   const g = getEffectiveDailyGoal(viewYear, viewMonth);
   if (count === 0) return 0;
+  if (g && count >= g * 1.04) return 'over';
   if (count >= g) return 5;
   if (count >= g * 0.75) return 4;
   if (count >= g * 0.5) return 3;
@@ -1329,11 +1338,11 @@ function closeEditor() {
 function saveDay() {
   if (!editingKey) return;
   const val = parseInt(document.getElementById('modalInput').value);
+  const existing = state.entries[editingKey];
 
   if (val && val > 0) {
     const prevBest = getGlobalBest();
-    const prev = state.entries[editingKey];
-    const wasRest = prev && prev.rest;
+    const wasRest = existing && existing.rest;
     state.entries[editingKey] = { count: val, rest: false };
 
     pulseKey = editingKey;
@@ -1343,6 +1352,8 @@ function saveDay() {
       if (val > prevBest && prevBest > 0) showToast('🏆 NEUER REKORD');
       else if (val >= getEffectiveDailyGoal(viewYear, viewMonth)) showToast('🎯 TAGESZIEL ERREICHT');
     }
+  } else if (existing && existing.rest) {
+    // Ruhetag bleibt unangetastet wenn OK ohne Eintrag bestätigt wird
   } else {
     delete state.entries[editingKey];
   }
@@ -1665,9 +1676,10 @@ function render() {
       ? `<div class="prog-marker" style="left: ${Math.min(100, expectedPct)}%"></div>`
       : '';
 
+    const numClass = isOverperformed ? 'overperformed-num' : (reached ? 'goal-reached' : 'done');
     progEl.innerHTML = `
       <div class="prog-line">
-        <span class="${reached ? 'goal-reached' : 'done'}">${monthSum}</span> / ${effMonthly}
+        <span class="${numClass}">${monthSum}</span> / ${effMonthly}
         ${deltaHtml}
       </div>
       <div class="prog-bar">

@@ -680,6 +680,28 @@ cursor: pointer;
 
 .reset-link:hover { color: #e67a7a; }
 
+.footer-actions {
+display: flex;
+justify-content: center;
+align-items: center;
+gap: 14px;
+margin-top: 12px;
+flex-wrap: wrap;
+}
+.footer-actions .reset-link { margin-top: 0; }
+.footer-link {
+background: none;
+border: none;
+color: #2a4a35;
+font-family: inherit;
+font-size: 9px;
+letter-spacing: 1px;
+cursor: pointer;
+padding: 0;
+}
+.footer-link:hover { color: #4a7a5a; }
+.footer-input { display: none; }
+
 /* TROPHIES MODAL */
 .modal.trophy-modal {
 max-width: 380px;
@@ -947,7 +969,12 @@ margin-bottom: 2px;
 
 <div class="hint">TIPP AUF EINEN TAG UM EINZUTRAGEN</div>
 
-<button class="reset-link" onclick="resetAll()">· ALLE DATEN LÖSCHEN ·</button>
+<div class="footer-actions">
+  <button class="footer-link" onclick="exportData()">· EXPORT ·</button>
+  <button class="footer-link" onclick="document.getElementById('importFile').click()">· IMPORT ·</button>
+  <button class="reset-link" onclick="resetAll()">· ALLE DATEN LÖSCHEN ·</button>
+</div>
+<input type="file" id="importFile" class="footer-input" accept=".json,application/json" onchange="handleImport(event)">
 
 </div><!-- end app-wrapper -->
 
@@ -976,6 +1003,18 @@ margin-bottom: 2px;
       <button class="trophy-modal-close" onclick="closeTrophies()" aria-label="Schließen">×</button>
     </div>
     <div class="trophy-modal-body" id="trophyModalBody"></div>
+  </div>
+</div>
+
+<!-- Import Confirmation Modal -->
+<div class="modal-bg" id="importModalBg" onclick="if(event.target.id==='importModalBg')closeImportModal()">
+  <div class="modal">
+    <div class="modal-date">📂 DATEN IMPORTIEREN?</div>
+    <div class="modal-sub" id="importModalSub" style="margin-bottom:16px; line-height:1.5;">—</div>
+    <div class="modal-actions">
+      <button class="mbtn" onclick="closeImportModal()">ABBRUCH</button>
+      <button class="mbtn primary" onclick="confirmImport()">ÜBERSCHREIBEN</button>
+    </div>
   </div>
 </div>
 
@@ -1353,6 +1392,86 @@ function closeResetModal() {
   document.getElementById('resetModalBg').classList.remove('open');
 }
 
+// ─── Export / Import ───
+function exportData() {
+  try {
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      state: state,
+      avgUnitIdx: avgUnitIdx,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const today = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `pushup-quest-backup-${today}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('💾 BACKUP HERUNTERGELADEN');
+  } catch(e) {
+    showToast('✕ EXPORT FEHLGESCHLAGEN');
+  }
+}
+
+let pendingImport = null;
+function handleImport(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = ''; // reset für erneute Auswahl derselben Datei
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const s = data.state || data; // erlaubt auch direkten state ohne wrapper
+      const entryCount = s.entries ? Object.keys(s.entries).length : 0;
+      const goalCount = s.monthGoals ? Object.keys(s.monthGoals).length : 0;
+      if (entryCount === 0 && goalCount === 0) {
+        showToast('✕ KEINE GÜLTIGEN DATEN');
+        return;
+      }
+      pendingImport = data;
+      document.getElementById('importModalSub').textContent =
+        `${entryCount} Tageseinträge, ${goalCount} Monatsziele werden geladen. Aktuelle Daten werden überschrieben.`;
+      document.getElementById('importModalBg').classList.add('open');
+    } catch(err) {
+      showToast('✕ DATEI NICHT LESBAR');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function closeImportModal() {
+  document.getElementById('importModalBg').classList.remove('open');
+  pendingImport = null;
+}
+
+function confirmImport() {
+  if (!pendingImport) return closeImportModal();
+  try {
+    const s = pendingImport.state || pendingImport;
+    state = {
+      entries: s.entries || {},
+      monthGoals: s.monthGoals || {},
+      seenTrophies: s.seenTrophies || [],
+    };
+    if (typeof pendingImport.avgUnitIdx === 'number') {
+      avgUnitIdx = pendingImport.avgUnitIdx;
+      try { localStorage.setItem('pushup-avgunit', String(avgUnitIdx)); } catch(e) {}
+    }
+    save();
+    render();
+    closeImportModal();
+    showToast('✓ DATEN IMPORTIERT');
+  } catch(e) {
+    showToast('✕ IMPORT FEHLGESCHLAGEN');
+    closeImportModal();
+  }
+}
+
 function confirmResetAll() {
   state = { entries: {}, monthGoals: {}, seenTrophies: [] };
   save();
@@ -1584,6 +1703,7 @@ document.addEventListener('keydown', (e) => {
     closeEditor();
     closeTrophies();
     closeResetModal();
+    closeImportModal();
   }
 });
 

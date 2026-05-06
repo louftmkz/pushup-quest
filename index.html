@@ -516,8 +516,10 @@ font-weight: 300;
 }
 
 .cell-value.rest {
-color: #4a7a5a;
-font-size: 12px;
+color: #7fffc4;
+font-size: 16px;
+font-weight: 500;
+text-shadow: 0 0 6px rgba(127, 255, 196, 0.5);
 }
 
 /* Heat levels */
@@ -535,8 +537,9 @@ font-size: 12px;
 .heat-over .cell-day { color: #2a1a04; }
 
 .cell.rest {
-background: #0e1a12;
-border-color: #1a3a25;
+background: #0d1f15;
+border-color: #2dba66;
+box-shadow: inset 0 0 8px rgba(45, 186, 102, 0.15);
 }
 
 .legend {
@@ -646,7 +649,9 @@ transition: all 0.15s;
 .modal-rest.active {
 color: #7fffc4;
 border-color: #2dba66;
-background: #0e1a12;
+background: #0d1f15;
+box-shadow: 0 0 12px rgba(45, 186, 102, 0.25);
+font-weight: 500;
 }
 
 .modal-rest:disabled,
@@ -1404,11 +1409,11 @@ function updateRestBtn() {
   btn.disabled = weekBlocked;
 
   if (isRest) {
-    btn.textContent = '☾ RUHETAG AKTIV';
+    btn.textContent = '🌙 RUHETAG AKTIV';
   } else if (weekBlocked) {
-    btn.textContent = '☾ WOCHE HAT BEREITS RUHETAG';
+    btn.textContent = '☽ WOCHE HAT BEREITS RUHETAG';
   } else {
-    btn.textContent = '☾ ALS RUHETAG MARKIEREN';
+    btn.textContent = '☽ ALS RUHETAG MARKIEREN';
   }
 }
 
@@ -1751,7 +1756,7 @@ function renderGrid() {
       if (entry && entry.rest) {
         cell.classList.add('rest');
         val.classList.add('rest');
-        val.textContent = '☾';
+        val.textContent = '🌙';
       } else if (entry && entry.count > 0) {
         cell.classList.add('heat-' + heatLevel(entry.count));
         val.textContent = entry.count;

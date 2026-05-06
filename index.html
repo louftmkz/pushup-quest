@@ -331,6 +331,52 @@ letter-spacing: 1px;
 .month-progress .done { color: #7fffc4; }
 .month-progress .goal-reached { color: #f9c74f; }
 
+.prog-line {
+display: flex;
+justify-content: center;
+align-items: baseline;
+gap: 8px;
+margin-bottom: 5px;
+flex-wrap: wrap;
+}
+
+.prog-delta {
+font-size: 9px;
+letter-spacing: 0.8px;
+}
+.prog-delta.behind  { color: #e67a7a; }
+.prog-delta.ahead   { color: #7fffc4; }
+.prog-delta.on-pace { color: #4a7a5a; }
+.prog-delta.reached { color: #f9c74f; }
+
+.prog-bar {
+position: relative;
+height: 4px;
+background: #1f3d28;
+border-radius: 2px;
+margin: 0 6px 4px;
+}
+
+.prog-fill {
+height: 100%;
+background: #2dba66;
+border-radius: 2px;
+transition: width 0.3s ease, background 0.2s ease;
+}
+.prog-fill.behind  { background: #c47070; }
+.prog-fill.ahead   { background: #7fffc4; }
+.prog-fill.reached { background: #f9c74f; }
+
+.prog-marker {
+position: absolute;
+top: -3px;
+bottom: -3px;
+width: 1.5px;
+background: #c8e6c9;
+pointer-events: none;
+transition: left 0.3s ease;
+}
+
 .dow-row {
 display: grid;
 grid-template-columns: repeat(7, 1fr);
@@ -1369,11 +1415,67 @@ function render() {
 
   const progEl = document.getElementById('monthProgress');
   if (effMonthly > 0) {
-    const pct = Math.round((monthSum / effMonthly) * 100);
+    const pctClamped = Math.min(100, Math.round((monthSum / effMonthly) * 100));
     const reached = monthSum >= effMonthly;
-    progEl.innerHTML = `<span class="${reached ? 'goal-reached' : 'done'}">${monthSum}</span> / ${effMonthly} · ${pct}%${reached ? ' ✓' : ''}`;
+    const days = getDaysInMonth(viewYear, viewMonth);
+    const now = new Date();
+    const isCurrent = (viewYear === now.getFullYear() && viewMonth === now.getMonth());
+    const isPast = (viewYear < now.getFullYear()) || (viewYear === now.getFullYear() && viewMonth < now.getMonth());
+
+    // Pace berechnen (nur bei aktuellem Monat ab Tag 2)
+    let expectedPct = null, delta = null;
+    if (isCurrent) {
+      const dayOfMonth = now.getDate();
+      if (dayOfMonth >= 2) {
+        expectedPct = (dayOfMonth / days) * 100;
+        const expectedPushups = Math.round(effMonthly * dayOfMonth / days);
+        delta = monthSum - expectedPushups;
+      }
+    } else if (isPast) {
+      expectedPct = 100; // vergangener Monat: vollständig erwartet
+      delta = monthSum - effMonthly;
+    }
+
+    // Fill-Farbklasse
+    let fillClass = '';
+    if (reached) fillClass = 'reached';
+    else if (delta !== null) {
+      if (delta < -effMonthly * 0.1) fillClass = 'behind';
+      else if (delta > effMonthly * 0.1) fillClass = 'ahead';
+    }
+
+    // Delta-Text
+    let deltaHtml = '';
+    if (reached) {
+      deltaHtml = `<span class="prog-delta reached">✓ erreicht</span>`;
+    } else if (delta !== null) {
+      const absD = Math.abs(delta);
+      if (absD < effMonthly * 0.02) {
+        deltaHtml = `<span class="prog-delta on-pace">🎯 auf Kurs</span>`;
+      } else if (delta > 0) {
+        deltaHtml = `<span class="prog-delta ahead">+${delta} voraus</span>`;
+      } else {
+        deltaHtml = `<span class="prog-delta behind">${delta} hinterher</span>`;
+      }
+    }
+
+    // Pace-Marker (nur wenn expectedPct gesetzt UND nicht erreicht)
+    const markerHtml = (expectedPct !== null && !reached)
+      ? `<div class="prog-marker" style="left: ${Math.min(100, expectedPct)}%"></div>`
+      : '';
+
+    progEl.innerHTML = `
+      <div class="prog-line">
+        <span class="${reached ? 'goal-reached' : 'done'}">${monthSum}</span> / ${effMonthly}
+        ${deltaHtml}
+      </div>
+      <div class="prog-bar">
+        <div class="prog-fill ${fillClass}" style="width: ${pctClamped}%"></div>
+        ${markerHtml}
+      </div>
+    `;
   } else if (monthSum > 0) {
-    progEl.innerHTML = `<span class="done">${monthSum}</span> LIEGESTÜTZE`;
+    progEl.innerHTML = `<div class="prog-line"><span class="done">${monthSum}</span> LIEGESTÜTZE</div>`;
   } else {
     progEl.innerHTML = '';
   }
